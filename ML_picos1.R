@@ -68,3 +68,4 @@ Temp1$fitGsigma <- as.numeric(Temp1$fitGsigma)
 Temp1 <- Temp1 %>% mutate(MaxGauss = fitGscale * dnorm(fitGmu, fitGmu, fitGsigma) + media)
 Temp1 <- Temp1 %>% mutate(picoG = ifelse(MaxGauss > media + ispeak * sd, TRUE, FALSE))
 
+grwgwg
