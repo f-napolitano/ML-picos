@@ -4,6 +4,7 @@ library(data.table)
 library(pracma)
 library(dplyr)
 library(caret)
+library(tibble)
 
 osystem <- "windows"
 
@@ -47,12 +48,9 @@ pathfiles <- ifelse(osystem == "ubuntu", "/media/federico/WD300_2/Fisica/Otros/C
 filelist <- paste(pathfiles, list.files(pathfiles), sep="")
 datalist <- lapply(filelist, function(x)read.table(x))
 datafr <- bind_cols(datalist)
-# Temp1 <- datafr[1, c(FALSE, TRUE)] %>% transpose() %>% mutate(nombre = list.files(pathfiles)) esto es en caso de tener una fila encabezado con parametro
-# datafr <- datafr[-1,] idem anterior
 
 Temp1 <- list.files(pathfiles)
 
-#diff1 = data.frame(lapply(datafr, function (x) as.double(as.character(x))))
 diff1 <- datafr
 
 #zona_i definen un rango de datos alrededor de los picos de la martensita definidos en "validos_filt" de forma que no agarre pico de otra fase
@@ -124,7 +122,7 @@ Temp1[, c('fitGmu1', 'fitGsigma1', 'fitGscale1', 'MaxGauss1', 'peakG1',
           'fitGmu3', 'fitGsigma3', 'fitGscale3', 'MaxGauss3', 'peakG3',
           'fitGmu4', 'fitGsigma4', 'fitGscale4', 'MaxGauss4', 'peakG4',
           'fitGmu5', 'fitGsigma5', 'fitGscale5', 'MaxGauss5', 'peakG5')
-      ]<- NA
+      ] <- NA
 
 
 for(i in 1:round(ncol(diff1)/2)) {
@@ -191,9 +189,49 @@ Temp1$peakG4 <- ifelse(Temp1$MaxGauss4 > Temp1$media4 + ispeak * Temp1$sd4, TRUE
 Temp1$MaxGauss5 <- Temp1$fitGscale5 * dnorm(Temp1$fitGmu5, Temp1$fitGmu5, Temp1$fitGsigma5) + Temp1$media5
 Temp1$peakG5 <- ifelse(Temp1$MaxGauss5 > Temp1$media5 + ispeak * Temp1$sd5, TRUE, FALSE)
 
+# -------------- creating predictors ---------------------
+Temp1 <- add_column(Temp1, PredPicoM1 = NA, .after = "Maximo1")
+Temp1 <- add_column(Temp1, PredPicoM2 = NA, .after = "Maximo2")
+Temp1 <- add_column(Temp1, PredPicoM3 = NA, .after = "Maximo3")
+Temp1 <- add_column(Temp1, PredPicoM4 = NA, .after = "Maximo4")
+Temp1 <- add_column(Temp1, PredPicoM5 = NA, .after = "Maximo5")
+
+Temp1 <- add_column(Temp1, PredPicoG1 = NA, .after = "MaxGauss1")
+Temp1 <- add_column(Temp1, PredPicoG2 = NA, .after = "MaxGauss2")
+Temp1 <- add_column(Temp1, PredPicoG3 = NA, .after = "MaxGauss3")
+Temp1 <- add_column(Temp1, PredPicoG4 = NA, .after = "MaxGauss4")
+Temp1 <- add_column(Temp1, PredPicoG5 = NA, .after = "MaxGauss5")
+
+Temp1$PredPicoM1 <- (Temp1$Maximo1 - Temp1$media1) / Temp1$sd1
+Temp1$PredPicoM2 <- (Temp1$Maximo2 - Temp1$media2) / Temp1$sd2
+Temp1$PredPicoM3 <- (Temp1$Maximo3 - Temp1$media3) / Temp1$sd3
+Temp1$PredPicoM4 <- (Temp1$Maximo4 - Temp1$media4) / Temp1$sd4
+Temp1$PredPicoM5 <- (Temp1$Maximo5 - Temp1$media5) / Temp1$sd5
+
+Temp1$PredPicoG1 <- (Temp1$MaxGauss1 - Temp1$media1) / Temp1$sd1
+Temp1$PredPicoG2 <- (Temp1$MaxGauss2 - Temp1$media2) / Temp1$sd2
+Temp1$PredPicoG3 <- (Temp1$MaxGauss3 - Temp1$media3) / Temp1$sd3
+Temp1$PredPicoG4 <- (Temp1$MaxGauss4 - Temp1$media4) / Temp1$sd4
+Temp1$PredPicoG5 <- (Temp1$MaxGauss5 - Temp1$media5) / Temp1$sd5
+
+Temp2 <- Temp1 %>% select(c("PredPicoM1", "PredPicoM2", "PredPicoM3", "PredPicoM4", "PredPicoM5"))
+Temp1 <- add_column(Temp1, PredMax = NA, .after = "Temp1")
+Temp1 <- add_column(Temp1, PredPicoM = NA, .after = "PredMax")
+Temp1 <- add_column(Temp1, PredGauss = NA, .after = "PredPicoM")
+Temp1 <- add_column(Temp1, PredPicoG = NA, .after = "PredGauss")
+
+Temp2 <- Temp2 %>% select(1:5) %>% t()
+Temp1$PredMax <- apply(Temp2, 2, max)
+Temp1$PredPicoM <- ifelse(Temp1$PredMax > ispeak, TRUE, FALSE)
+
+Temp2 <- Temp1 %>% select(c("PredPicoG1", "PredPicoG2", "PredPicoG3", "PredPicoG4", "PredPicoG5"))
+Temp2 <- Temp2 %>% select(1:5) %>% t()
+Temp1$PredGauss <- apply(Temp2, 2, max)
+Temp1$PredPicoG <- ifelse(Temp1$PredGauss > ispeak, TRUE, FALSE)
+
 # -------------- creating train and test set --------------
 
-y <- Temp1$Maximo1
+y <- Temp1$PredPicoM
 
 test_index <- createDataPartition(y, times = 1, p = 0.5, list = TRUE)
 
@@ -202,8 +240,20 @@ test_index <- createDataPartition(y, times = 1, p = 0.5, list = TRUE)
 # ------------ filtro FIR --------------
 h <- fir1(10, 0.1, "low")
 h1 <- fir1(5,0.1,"low")
-f1 <- filter(h1, zona1[[36]])
-f2 <- filter(h, zona1[[36]])
-plot(zona1[[35]], zona1[[36]])
-lines(zona1[[35]], f1, col = "red", lwd = 2)
-lines(zona1[[35]], f2, col = "blue", lwd = 2)
+f1 <- filter(h1, zona3[[24]])
+f2 <- filter(h, zona3[[24]])
+plot(zona3[[23]], zona3[[24]])
+lines(zona3[[23]], f1, col = "red", lwd = 2)
+lines(zona3[[23]], f2, col = "blue", lwd = 2)
+
+
+# --------------- seleccion de archivos --------------
+# codigo para generar un listado arbitrario de archivos y copiarlos a otro lado para generar training y evaluation sets
+#pathfiles <- ifelse(osystem == "ubuntu", "/media/federico/WD300_2/Fisica/Otros/Cesar/Exploracion/", "f:/Fisica/Otros/Cesar/DESY_Octubre_2022/CR94_1300_P5_cyc3_312um_rot_180-0/")
+#filelist <- paste(pathfiles, list.files(pathfiles), sep="")
+#
+#set.seed()
+#pickup <- as.vector(sample_frac(as.data.frame(filelist), size = 0.1, replace = FALSE))
+#
+#file.copy(as.vector(t(pickup)), "f:/Fisica/Otros/Cesar/Sets/21")
+
