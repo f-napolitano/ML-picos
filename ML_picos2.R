@@ -245,7 +245,7 @@ Output_train_predG_df <- Output_train_list %>% select(c('filename', 'set',
                                                         'PredPicoG4', 'peakG4',
                                                         'PredPicoG5', 'peakG5'))
 
-# ------------- constructing de algorithm on train set ----------------------
+# ------------- building the algorithm on train set ----------------------
 x <- Output_train_predM_df$PredPicoM1
 y <- as.character(train_set$zona.1)
 test_set$zona.1 <- as.character(test_set$zona.1)
@@ -259,7 +259,7 @@ confusionMatrix(data = y_hat, reference = as.factor(test_set$zona.1))
 # So clearly we can't use accuracy, need to switch to F-1 and balanced accuracy
 
 # maximizing F-score
-ispeak <- seq(from = 1.75, to = 10, by = 0.25)
+ispeak <- seq(from = 1.75, to = 6, by = 0.1)
 F_1 <- map_dbl(ispeak, function(x){ 
   y_hat <- ifelse(Output_train_predM_df$PredPicoM1 < x, "FALSE", "TRUE")
   y_hat <- as.factor(y_hat)
@@ -440,3 +440,186 @@ Output_test_predG_df <- Output_test_list %>% select(c('filename', 'set',
 y_hat <- ifelse(Output_test_predM_df$PredPicoM1 < best_ispeak, "FALSE", "TRUE")
 y_hat <- as.factor(y_hat)
 confusionMatrix(data = y_hat, reference = as.factor(test_set$zona.1))
+
+# Here we're still seeing an unbalance between Sensitivity and specificity, being the later one much too low
+# Will try to weight differently how much important is to detect TRUE a peak than detect FALSE a no peak
+# incorporate "beta" into the calculation of F_1
+
+# ------------------ Introducing weight into F_1 score ------------------
+beta_prop <- 0.25
+rm(ispeak)
+rm(F_1)
+ispeak <- seq(from = 1.75, to = 6, by = 0.1)
+F_1 <- map_dbl(ispeak, function(x){
+  y_hat <- ifelse(Output_train_predM_df$PredPicoM1 < x, "FALSE", "TRUE")
+  y_hat <- as.factor(y_hat)
+  F_meas(data = y_hat, reference = as.factor(train_set$zona.1), beta = beta_prop)
+})
+
+ggplot() + aes(ispeak, F_1) + geom_point() + geom_line()
+max(F_1)
+best_ispeak <- ispeak[which.max(F_1)]
+best_ispeak
+
+y_hat <- ifelse(Output_test_predM_df$PredPicoM1 < best_ispeak, "FALSE", "TRUE")
+y_hat <- as.factor(y_hat)
+confusionMatrix(data = y_hat, reference = as.factor(test_set$zona.1))
+
+# ----------- Comparing predicted and true results in test set -----------------
+test_set <- add_column(test_set, PredPicoM1 = y_hat, .after = "zona.1")
+
+index <- test_set %>% with(which(zona.1 == "TRUE" & PredPicoM1 == "TRUE")) # list of indexes of where TRUE peaks where found TRUE
+lapply(index, function(x) plot(zona1[[2*x-1]], zona1[[2*x]], main = test_set$Archivo[x]))
+
+# ----------- evaluating F_1 for every ispeak and every beta -------------------
+beta_prop_vec <- seq(from = 0.2, to = 1, by = 0.1)
+rm(F_1)
+
+# F_1_2 function to calculate F_1 score as a function of ispeak and beta
+F_1_2 <- function(x,y) {
+  y_hat1 <- ifelse(Output_train_predM_df$PredPicoM1 < x, "FALSE", "TRUE")
+  y_hat1 <- as.factor(y_hat1)
+  F_meas(data = y_hat1, reference = as.factor(train_set$zona.1), beta = y)
+}
+
+F_1 <- sapply(beta_prop_vec, function(y) mapply(F_1_2,ispeak,y))
+maximos <- apply(F_1, 2, which.max)    # indexes of where the F_1 maximum for each beta are
+F_1 <- as.data.frame(F_1)
+names(F_1) <- c(beta_prop_vec)
+F_1 <- F_1 %>% add_column(valor = ispeak, .before = 1)
+ispeak_max <- F_1$valor[maximos]     # ispeak of the F_1 maximum for each beta
+
+results <- as.data.frame(beta_prop_vec)
+results <- results %>% mutate(threshold1 = ispeak_max)
+results <- results %>% mutate(maximum1 = apply(F_1[-1], 2, max))
+
+F_1 <- melt(F_1 ,  id.vars = 'valor', variable.name = 'beta')
+ggplot(F_1, aes(valor, value)) + geom_line(aes(colour = beta)) + geom_point(aes(colour = beta))
+
+
+# ------------- Applying ML code to data ---------------------------------------
+# first lets know where data actually are
+fileEvalpath <- ifelse(osystem == "ubuntu", 
+                       "/media/federico/WD300_2/Fisica/Otros/Cesar/Evaluation/",
+                       "f:/Fisica/Otros/Cesar/Evaluation/")
+
+fileEvalfiles <- read.table(file = paste(fileEvalpath, "folders.txt", sep = ""))
+fileEvalfiles <- rename(fileEvalfiles, fullfolder = V1)
+fileEvalfiles <- fileEvalfiles %>% mutate(namefolder = NA)
+fileEvalfiles$namefolder <- substr(fileEvalfiles$fullfolder, 
+                                   start = ifelse(osystem == "ubuntu", 55, 34),
+                                   stop = str_length(fileEvalfiles$fullfolder))
+fileEvalfiles$fullfolder <- paste(fileEvalfiles$fullfolder, "/", sep="")
+
+filenames_full <- fileEvalfiles$fullfolder %>% 
+  lapply(function(x) list.files(x, pattern = "*.txt", full.names = TRUE))  #list with all filenames and paths
+
+# Now lets calculate the mean and sd on both edges of zones 1 through 5 for every dataset
+#--example with only 1 folder
+folder_number <- 19  # tengo que secuenciarlo con un seq(1:length(filenames_full))
+
+dataEvallist <- lapply(filenames_full[[folder_number]], function(x) read.table(x))
+seq_long_folder <- seq(1:length(dataEvallist))
+
+zona1 <- lapply(seq_long_folder, 
+                function(x){
+                  dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[1] - validos_filt$min[1]/2) & 
+                                               V1 < (validos_filt$twothetaM[1] + validos_filt$min[1]/2))
+                })
+subzona1 <- lapply(seq_long_folder, 
+                   function(x){
+                     zona1[[x]] %>% filter(V1 < (validos_filt$twothetaM[1] - validos_filt$min[1]/4) | 
+                                           V1 > (validos_filt$twothetaM[1] + validos_filt$min[1]/4)) %>% 
+                     select(V2)
+              })
+max_M1 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona1[[x]]$V2 %>% max()))))
+sd1 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona1[[x]]$V2 %>% sd()))))
+media1 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona1[[x]]$V2 %>% mean()))))
+
+zona2 <- lapply(seq_long_folder, 
+                function(x){
+                  dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[2] - validos_filt$min[2]/2) &
+                                               V1 < validos_filt$twothetaM[2] + validos_filt$min[2]/2)
+                  
+                })
+
+subzona2 <- lapply(seq_long_folder,
+                  function(x){
+                    zona2[[x]] %>% filter(V1 < (validos_filt$twothetaM[2] - validos_filt$min[2]/4) |
+                                          V1 > (validos_filt$twothetaM[2] + validos_filt$min[2]/4)) %>%
+                    select(V2)
+                  })
+max_M2 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona2[[x]]$V2 %>% max()))))
+sd2 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona2[[x]]$V2 %>% sd()))))
+media2 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona2[[x]]$V2 %>% mean()))))
+
+zona3 <- lapply(seq_long_folder,
+                function(x){
+                  dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[3] - validos_filt$min[3]/2) &
+                                               V1 < (validos_filt$twothetaM[3] + validos_filt$min[3]/2))
+                })
+subzona3 <- lapply(seq_long_folder, 
+                   function(x){
+                     zona3[[x]] %>% filter(V1 < (validos_filt$twothetaM[3] - validos_filt$min[3]/4) |
+                                           V1 > (validos_filt$twothetaM[3] + validos_filt$min[3]/4)) %>%
+                     select(V2)
+                   })
+max_M3 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona3[[x]]$V2 %>% max()))))
+sd3 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona3[[x]]$V2 %>% sd()))))
+media3 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona3[[x]]$V2 %>% mean()))))
+
+zona4 <- lapply(seq_long_folder, 
+                function(x){
+                  dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[4] - validos_filt$min[4]/2) & 
+                                                 V1 < (validos_filt$twothetaM[4] + validos_filt$min[4]/2))
+                })
+subzona4 <- lapply(seq_long_folder,
+                   function(x){
+                     zona4[[x]] %>% filter(V1 < (validos_filt$twothetaM[4] - validos_filt$min[4]/4) |
+                                           V1 > (validos_filt$twothetaM[4] + validos_filt$min[4]/4)) %>%
+                     select(V2)
+                   })
+max_M4 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona4[[x]]$V2 %>% max()))))
+sd4 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona4[[x]]$V2 %>% sd()))))
+media4 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona4[[x]]$V2 %>% mean()))))
+
+zona5 <- lapply(seq_long_folder, 
+                function(x){
+                  dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[5] - validos_filt$min[5]/2) &
+                                               V1 < (validos_filt$twothetaM[5] + validos_filt$min[5]/2))
+                })
+subzona5 <- lapply(seq_long_folder,
+                   function(x){
+                     zona5[[x]] %>% filter(V1 < (validos_filt$twothetaM[5] - validos_filt$min[5]/4) | 
+                                           V1 > (validos_filt$twothetaM[5] + validos_filt$min[5]/4)) %>%
+                     select(V2)
+                   })
+max_M5 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona5[[x]]$V2 %>% max()))))
+sd5 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona5[[x]]$V2 %>% sd()))))
+media5 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona5[[x]]$V2 %>% mean()))))
+
+# now lets build the output dataframe with the results
+df_Eval_resultsM <- data.frame("full_name" = filenames_full[[folder_number]], 
+                               "zona1_max" = max_M1, "zona1_mean" = media1, "zona1_sd" = sd1, prominence1 = NA, peak1 = NA,
+                               "zona2_max" = max_M2, "zona2_mean" = media2, "zona2_sd" = sd2, prominence2 = NA, peak2 = NA,  
+                               "zona3_max" = max_M3, "zona3_mean" = media3, "zona3_sd" = sd3, prominence3 = NA, peak3 = NA,
+                               "zona4_max" = max_M4, "zona4_mean" = media4, "zona4_sd" = sd4, prominence4 = NA, peak4 = NA,
+                               "zona5_max" = max_M5, "zona5_mean" = media5, "zona5_sd" = sd5, prominence5 = NA, peak5 = NA) 
+
+df_Eval_resultsM$full_name <- substring(df_Eval_resultsM$full_name, first = ifelse(osystem == "ubuntu", 55, 34))
+
+df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence1 = (zona1_max - zona1_mean) / zona1_sd)
+df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence2 = (zona2_max - zona2_mean) / zona2_sd)
+df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence3 = (zona3_max - zona3_mean) / zona3_sd)
+df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence4 = (zona4_max - zona4_mean) / zona4_sd)
+df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence5 = (zona5_max - zona5_mean) / zona5_sd)
+
+peak_threshold <-  results$threshold1[which.max(results$maximum1)]
+
+df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak1 = ifelse(prominence1 > peak_threshold, "TRUE", "FALSE"))
+df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak2 = ifelse(prominence2 > peak_threshold, "TRUE", "FALSE"))
+df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak3 = ifelse(prominence3 > peak_threshold, "TRUE", "FALSE"))
+df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak4 = ifelse(prominence4 > peak_threshold, "TRUE", "FALSE"))
+df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak5 = ifelse(prominence5 > peak_threshold, "TRUE", "FALSE"))
+
+
