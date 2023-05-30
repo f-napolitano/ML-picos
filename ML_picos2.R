@@ -514,112 +514,125 @@ fileEvalfiles$fullfolder <- paste(fileEvalfiles$fullfolder, "/", sep="")
 filenames_full <- fileEvalfiles$fullfolder %>% 
   lapply(function(x) list.files(x, pattern = "*.txt", full.names = TRUE))  #list with all filenames and paths
 
+lst_Eval_resultsM <- vector(mode = 'list', length = length(filenames_full)) #list with all results (empty for now)
+
 # Now lets calculate the mean and sd on both edges of zones 1 through 5 for every dataset
 #--example with only 1 folder
-folder_number <- 19  # tengo que secuenciarlo con un seq(1:length(filenames_full))
 
-dataEvallist <- lapply(filenames_full[[folder_number]], function(x) read.table(x))
-seq_long_folder <- seq(1:length(dataEvallist))
 
-zona1 <- lapply(seq_long_folder, 
-                function(x){
-                  dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[1] - validos_filt$min[1]/2) & 
-                                               V1 < (validos_filt$twothetaM[1] + validos_filt$min[1]/2))
-                })
-subzona1 <- lapply(seq_long_folder, 
-                   function(x){
-                     zona1[[x]] %>% filter(V1 < (validos_filt$twothetaM[1] - validos_filt$min[1]/4) | 
-                                           V1 > (validos_filt$twothetaM[1] + validos_filt$min[1]/4)) %>% 
-                     select(V2)
-              })
-max_M1 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona1[[x]]$V2 %>% max()))))
-sd1 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona1[[x]]$V2 %>% sd()))))
-media1 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona1[[x]]$V2 %>% mean()))))
+folder_number <- seq(1:length(filenames_full))  # tengo que secuenciarlo con un seq(1:length(filenames_full))
 
-zona2 <- lapply(seq_long_folder, 
-                function(x){
-                  dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[2] - validos_filt$min[2]/2) &
-                                               V1 < validos_filt$twothetaM[2] + validos_filt$min[2]/2)
-                  
-                })
-
-subzona2 <- lapply(seq_long_folder,
+lapply(seq(19:20), function(y) {
+    
+  
+  dataEvallist <- lapply(filenames_full[[y]], function(x) read.table(x))
+  seq_long_folder <- seq(1:length(dataEvallist))
+  
+  zona1 <- lapply(seq_long_folder, 
                   function(x){
-                    zona2[[x]] %>% filter(V1 < (validos_filt$twothetaM[2] - validos_filt$min[2]/4) |
-                                          V1 > (validos_filt$twothetaM[2] + validos_filt$min[2]/4)) %>%
-                    select(V2)
+                    dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[1] - validos_filt$min[1]/2) & 
+                                                 V1 < (validos_filt$twothetaM[1] + validos_filt$min[1]/2))
                   })
-max_M2 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona2[[x]]$V2 %>% max()))))
-sd2 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona2[[x]]$V2 %>% sd()))))
-media2 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona2[[x]]$V2 %>% mean()))))
-
-zona3 <- lapply(seq_long_folder,
-                function(x){
-                  dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[3] - validos_filt$min[3]/2) &
-                                               V1 < (validos_filt$twothetaM[3] + validos_filt$min[3]/2))
+  subzona1 <- lapply(seq_long_folder, 
+                     function(x){
+                       zona1[[x]] %>% filter(V1 < (validos_filt$twothetaM[1] - validos_filt$min[1]/4) | 
+                                             V1 > (validos_filt$twothetaM[1] + validos_filt$min[1]/4)) %>% 
+                       select(V2)
                 })
-subzona3 <- lapply(seq_long_folder, 
-                   function(x){
-                     zona3[[x]] %>% filter(V1 < (validos_filt$twothetaM[3] - validos_filt$min[3]/4) |
-                                           V1 > (validos_filt$twothetaM[3] + validos_filt$min[3]/4)) %>%
-                     select(V2)
-                   })
-max_M3 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona3[[x]]$V2 %>% max()))))
-sd3 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona3[[x]]$V2 %>% sd()))))
-media3 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona3[[x]]$V2 %>% mean()))))
+  max_M1 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona1[[x]]$V2 %>% max()))))
+  sd1 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona1[[x]]$V2 %>% sd()))))
+  media1 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona1[[x]]$V2 %>% mean()))))
+  
+  zona2 <- lapply(seq_long_folder, 
+                  function(x){
+                    dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[2] - validos_filt$min[2]/2) &
+                                                 V1 < validos_filt$twothetaM[2] + validos_filt$min[2]/2)
+                    
+                  })
+  
+  subzona2 <- lapply(seq_long_folder,
+                    function(x){
+                      zona2[[x]] %>% filter(V1 < (validos_filt$twothetaM[2] - validos_filt$min[2]/4) |
+                                            V1 > (validos_filt$twothetaM[2] + validos_filt$min[2]/4)) %>%
+                      select(V2)
+                    })
+  max_M2 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona2[[x]]$V2 %>% max()))))
+  sd2 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona2[[x]]$V2 %>% sd()))))
+  media2 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona2[[x]]$V2 %>% mean()))))
+  
+  zona3 <- lapply(seq_long_folder,
+                  function(x){
+                    dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[3] - validos_filt$min[3]/2) &
+                                                 V1 < (validos_filt$twothetaM[3] + validos_filt$min[3]/2))
+                  })
+  subzona3 <- lapply(seq_long_folder, 
+                     function(x){
+                       zona3[[x]] %>% filter(V1 < (validos_filt$twothetaM[3] - validos_filt$min[3]/4) |
+                                             V1 > (validos_filt$twothetaM[3] + validos_filt$min[3]/4)) %>%
+                       select(V2)
+                     })
+  max_M3 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona3[[x]]$V2 %>% max()))))
+  sd3 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona3[[x]]$V2 %>% sd()))))
+  media3 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona3[[x]]$V2 %>% mean()))))
+  
+  zona4 <- lapply(seq_long_folder, 
+                  function(x){
+                    dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[4] - validos_filt$min[4]/2) & 
+                                                   V1 < (validos_filt$twothetaM[4] + validos_filt$min[4]/2))
+                  })
+  subzona4 <- lapply(seq_long_folder,
+                     function(x){
+                       zona4[[x]] %>% filter(V1 < (validos_filt$twothetaM[4] - validos_filt$min[4]/4) |
+                                             V1 > (validos_filt$twothetaM[4] + validos_filt$min[4]/4)) %>%
+                       select(V2)
+                     })
+  max_M4 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona4[[x]]$V2 %>% max()))))
+  sd4 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona4[[x]]$V2 %>% sd()))))
+  media4 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona4[[x]]$V2 %>% mean()))))
+  
+  zona5 <- lapply(seq_long_folder, 
+                  function(x){
+                    dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[5] - validos_filt$min[5]/2) &
+                                                 V1 < (validos_filt$twothetaM[5] + validos_filt$min[5]/2))
+                  })
+  subzona5 <- lapply(seq_long_folder,
+                     function(x){
+                       zona5[[x]] %>% filter(V1 < (validos_filt$twothetaM[5] - validos_filt$min[5]/4) | 
+                                             V1 > (validos_filt$twothetaM[5] + validos_filt$min[5]/4)) %>%
+                       select(V2)
+                     })
+  max_M5 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona5[[x]]$V2 %>% max()))))
+  sd5 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona5[[x]]$V2 %>% sd()))))
+  media5 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona5[[x]]$V2 %>% mean()))))
+  
+  # now lets build the output dataframe with the results
+  df_Eval_resultsM <- data.frame("full_name" = filenames_full[[y]], 
+                                 "zona1_max" = max_M1, "zona1_mean" = media1, "zona1_sd" = sd1, prominence1 = NA, peak1 = NA,
+                                 "zona2_max" = max_M2, "zona2_mean" = media2, "zona2_sd" = sd2, prominence2 = NA, peak2 = NA,  
+                                 "zona3_max" = max_M3, "zona3_mean" = media3, "zona3_sd" = sd3, prominence3 = NA, peak3 = NA,
+                                 "zona4_max" = max_M4, "zona4_mean" = media4, "zona4_sd" = sd4, prominence4 = NA, peak4 = NA,
+                                 "zona5_max" = max_M5, "zona5_mean" = media5, "zona5_sd" = sd5, prominence5 = NA, peak5 = NA) 
+  
+  df_Eval_resultsM$full_name <- substring(df_Eval_resultsM$full_name, first = ifelse(osystem == "ubuntu", 55, 34))
+  
+  df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence1 = (zona1_max - zona1_mean) / zona1_sd)
+  df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence2 = (zona2_max - zona2_mean) / zona2_sd)
+  df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence3 = (zona3_max - zona3_mean) / zona3_sd)
+  df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence4 = (zona4_max - zona4_mean) / zona4_sd)
+  df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence5 = (zona5_max - zona5_mean) / zona5_sd)
+  
+  peak_threshold <-  results$threshold1[which.max(results$maximum1)]
+  
+  df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak1 = ifelse(prominence1 > peak_threshold, "TRUE", "FALSE"))
+  df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak2 = ifelse(prominence2 > peak_threshold, "TRUE", "FALSE"))
+  df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak3 = ifelse(prominence3 > peak_threshold, "TRUE", "FALSE"))
+  df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak4 = ifelse(prominence4 > peak_threshold, "TRUE", "FALSE"))
+  df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak5 = ifelse(prominence5 > peak_threshold, "TRUE", "FALSE"))
+  
+  
+  lst_Eval_resultsM[[y]] <- df_Eval_resultsM
+  
+  write.csv(df_Eval_resultsM, paste(fileEvalfiles$fullfolder[y], fileEvalfiles$namefolder[y],".csv", sep=""), row.names=TRUE)
 
-zona4 <- lapply(seq_long_folder, 
-                function(x){
-                  dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[4] - validos_filt$min[4]/2) & 
-                                                 V1 < (validos_filt$twothetaM[4] + validos_filt$min[4]/2))
-                })
-subzona4 <- lapply(seq_long_folder,
-                   function(x){
-                     zona4[[x]] %>% filter(V1 < (validos_filt$twothetaM[4] - validos_filt$min[4]/4) |
-                                           V1 > (validos_filt$twothetaM[4] + validos_filt$min[4]/4)) %>%
-                     select(V2)
-                   })
-max_M4 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona4[[x]]$V2 %>% max()))))
-sd4 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona4[[x]]$V2 %>% sd()))))
-media4 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona4[[x]]$V2 %>% mean()))))
-
-zona5 <- lapply(seq_long_folder, 
-                function(x){
-                  dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[5] - validos_filt$min[5]/2) &
-                                               V1 < (validos_filt$twothetaM[5] + validos_filt$min[5]/2))
-                })
-subzona5 <- lapply(seq_long_folder,
-                   function(x){
-                     zona5[[x]] %>% filter(V1 < (validos_filt$twothetaM[5] - validos_filt$min[5]/4) | 
-                                           V1 > (validos_filt$twothetaM[5] + validos_filt$min[5]/4)) %>%
-                     select(V2)
-                   })
-max_M5 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona5[[x]]$V2 %>% max()))))
-sd5 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona5[[x]]$V2 %>% sd()))))
-media5 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona5[[x]]$V2 %>% mean()))))
-
-# now lets build the output dataframe with the results
-df_Eval_resultsM <- data.frame("full_name" = filenames_full[[folder_number]], 
-                               "zona1_max" = max_M1, "zona1_mean" = media1, "zona1_sd" = sd1, prominence1 = NA, peak1 = NA,
-                               "zona2_max" = max_M2, "zona2_mean" = media2, "zona2_sd" = sd2, prominence2 = NA, peak2 = NA,  
-                               "zona3_max" = max_M3, "zona3_mean" = media3, "zona3_sd" = sd3, prominence3 = NA, peak3 = NA,
-                               "zona4_max" = max_M4, "zona4_mean" = media4, "zona4_sd" = sd4, prominence4 = NA, peak4 = NA,
-                               "zona5_max" = max_M5, "zona5_mean" = media5, "zona5_sd" = sd5, prominence5 = NA, peak5 = NA) 
-
-df_Eval_resultsM$full_name <- substring(df_Eval_resultsM$full_name, first = ifelse(osystem == "ubuntu", 55, 34))
-
-df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence1 = (zona1_max - zona1_mean) / zona1_sd)
-df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence2 = (zona2_max - zona2_mean) / zona2_sd)
-df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence3 = (zona3_max - zona3_mean) / zona3_sd)
-df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence4 = (zona4_max - zona4_mean) / zona4_sd)
-df_Eval_resultsM <- df_Eval_resultsM %>% mutate(prominence5 = (zona5_max - zona5_mean) / zona5_sd)
-
-peak_threshold <-  results$threshold1[which.max(results$maximum1)]
-
-df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak1 = ifelse(prominence1 > peak_threshold, "TRUE", "FALSE"))
-df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak2 = ifelse(prominence2 > peak_threshold, "TRUE", "FALSE"))
-df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak3 = ifelse(prominence3 > peak_threshold, "TRUE", "FALSE"))
-df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak4 = ifelse(prominence4 > peak_threshold, "TRUE", "FALSE"))
-df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak5 = ifelse(prominence5 > peak_threshold, "TRUE", "FALSE"))
-
+})
 
