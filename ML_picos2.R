@@ -432,7 +432,7 @@ Output_test_predG_df <- Output_test_list %>% select(c('filename', 'set',
                                                         'PredPicoG4', 'peakG4',
                                                         'PredPicoG5', 'peakG5'))
 
-# done constructing the test_set as we've donde with train_set
+# done constructing the test_set as we've done with train_set
 
 
 # -------------------- Evaluation on test set ----------------------------
@@ -496,6 +496,33 @@ results <- results %>% mutate(maximum1 = apply(F_1[-1], 2, max))
 F_1 <- melt(F_1 ,  id.vars = 'valor', variable.name = 'beta')
 ggplot(F_1, aes(valor, value)) + geom_line(aes(colour = beta)) + geom_point(aes(colour = beta))
 
+# -------------- Comparing method with just guessing ---------------------------
+# ROC 
+probs <- seq(0, 1, length.out = 11)
+guessing <- map_df(probs, function(p) {
+  y_hat_prob <- sample(c("FALSE", "TRUE"), length(test_index), 
+                       replace = TRUE, prob = c(p, 1-p)) %>%
+    factor(levels = c("FALSE", "TRUE"))
+  list(method = "Guess", 
+       recall = sensitivity(y_hat_prob, as.factor(test_set$zona.1)),
+       precision = precision(y_hat_prob, as.factor(test_set$zona.1)))
+})
+ggplot() + aes(guessing$recall, guessing$precision) + geom_point() + geom_line() + geom_label(aes(label = probs))
+
+max_method <- map_df(ispeak, function(peak) {
+  y_hat_maxROC <- ifelse(Output_train_predM_df$PredPicoM1 < peak, "FALSE", "TRUE") %>%
+    factor(levels = c("FALSE", "TRUE"))
+  list(method = "Maximum", 
+       recall = sensitivity(y_hat_maxROC, as.factor(test_set$zona.1)), 
+       precision = precision(y_hat_maxROC, as.factor(test_set$zona.1)))
+})
+ggplot() + aes(max_method$recall, max_method$precision) + geom_point() + geom_line() + geom_label(aes(label = ispeak))
+
+guessing <- mutate(guessing, label = probs)
+max_method <- mutate(max_method, label = ispeak)
+methods_comp_plot <- rbind(guessing, max_method)
+ggplot(methods_comp_plot, aes(x=recall, y=precision, group=method, col=method, fill=method)) + geom_point() + geom_line() + 
+  geom_text(aes(recall, precision, label = methods_comp_plot$label), nudge_x = 0.01, nudge_y = 0.005)
 
 # ------------- Applying ML code to data ---------------------------------------
 # first lets know where data actually are
@@ -522,12 +549,11 @@ lst_Eval_resultsM <- vector(mode = 'list', length = length(filenames_full)) #lis
 
 folder_number <- seq(1:length(filenames_full))  # tengo que secuenciarlo con un seq(1:length(filenames_full))
 
-lapply(seq(19:20), function(y) {
-    
-  
-  dataEvallist <- lapply(filenames_full[[y]], function(x) read.table(x))
+for (ii in folder_number) {
+  print(sprintf("ciclo %i", ii))
+  dataEvallist <- lapply(filenames_full[[ii]], function(x) read.table(x))
   seq_long_folder <- seq(1:length(dataEvallist))
-  
+
   zona1 <- lapply(seq_long_folder, 
                   function(x){
                     dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[1] - validos_filt$min[1]/2) & 
@@ -542,7 +568,9 @@ lapply(seq(19:20), function(y) {
   max_M1 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona1[[x]]$V2 %>% max()))))
   sd1 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona1[[x]]$V2 %>% sd()))))
   media1 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona1[[x]]$V2 %>% mean()))))
-  
+
+  print(sprintf("Done zone 1 folder %i", ii))
+    
   zona2 <- lapply(seq_long_folder, 
                   function(x){
                     dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[2] - validos_filt$min[2]/2) &
@@ -560,6 +588,8 @@ lapply(seq(19:20), function(y) {
   sd2 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona2[[x]]$V2 %>% sd()))))
   media2 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona2[[x]]$V2 %>% mean()))))
   
+  print(sprintf("Done zone 2 folder %i", ii))
+  
   zona3 <- lapply(seq_long_folder,
                   function(x){
                     dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[3] - validos_filt$min[3]/2) &
@@ -574,6 +604,8 @@ lapply(seq(19:20), function(y) {
   max_M3 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) zona3[[x]]$V2 %>% max()))))
   sd3 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona3[[x]]$V2 %>% sd()))))
   media3 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona3[[x]]$V2 %>% mean()))))
+  
+  print(sprintf("Done zone 3 folder %i", ii))
   
   zona4 <- lapply(seq_long_folder, 
                   function(x){
@@ -590,6 +622,8 @@ lapply(seq(19:20), function(y) {
   sd4 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona4[[x]]$V2 %>% sd()))))
   media4 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona4[[x]]$V2 %>% mean()))))
   
+  print(sprintf("Done zone 4 folder %i", ii))
+  
   zona5 <- lapply(seq_long_folder, 
                   function(x){
                     dataEvallist[[x]] %>% filter(V1 > (validos_filt$twothetaM[5] - validos_filt$min[5]/2) &
@@ -605,8 +639,10 @@ lapply(seq(19:20), function(y) {
   sd5 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona5[[x]]$V2 %>% sd()))))
   media5 <- as.vector(t(as.data.frame(lapply(seq_long_folder, function(x) subzona5[[x]]$V2 %>% mean()))))
   
+  print(sprintf("Done zone 5 folder %i", ii))
+  
   # now lets build the output dataframe with the results
-  df_Eval_resultsM <- data.frame("full_name" = filenames_full[[y]], 
+  df_Eval_resultsM <- data.frame("full_name" = filenames_full[[ii]], 
                                  "zona1_max" = max_M1, "zona1_mean" = media1, "zona1_sd" = sd1, prominence1 = NA, peak1 = NA,
                                  "zona2_max" = max_M2, "zona2_mean" = media2, "zona2_sd" = sd2, prominence2 = NA, peak2 = NA,  
                                  "zona3_max" = max_M3, "zona3_mean" = media3, "zona3_sd" = sd3, prominence3 = NA, peak3 = NA,
@@ -630,9 +666,15 @@ lapply(seq(19:20), function(y) {
   df_Eval_resultsM <- df_Eval_resultsM %>% mutate(peak5 = ifelse(prominence5 > peak_threshold, "TRUE", "FALSE"))
   
   
-  lst_Eval_resultsM[[y]] <- df_Eval_resultsM
-  
-  write.csv(df_Eval_resultsM, paste(fileEvalfiles$fullfolder[y], fileEvalfiles$namefolder[y],".csv", sep=""), row.names=TRUE)
+  lst_Eval_resultsM[[ii]] <- df_Eval_resultsM
 
-})
+  print(sprintf("Done building df result folder %i", ii))
+  
+  write.csv(df_Eval_resultsM, paste(fileEvalfiles$fullfolder[ii], fileEvalfiles$namefolder[ii],".csv", sep=""), row.names=TRUE)
+
+  print(sprintf("Done writing output file folder %i", ii))
+}
+
+
+
 
