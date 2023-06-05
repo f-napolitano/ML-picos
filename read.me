@@ -1,0 +1,11 @@
+This code is intended for the exploration of 1D multiphase diffraction patterns looking for the existance of a particular phase. It explores the position of the target theoretical phase in comparison with the other theoretical ones and it selects those that fulfill certain conditions. 2theta "zones" are build, one for each target peak. Code run inside these zones and do nothing outside.
+
+A train and a test sets are build
+
+Code is trained in train set, looking for the best condition for peak identification inside each zone. Later it is tested against the test set. It deals with prevalence in the data. Method for peak identification is looking (maximum - mean) / sd inside each zone.
+
+Code efficiency is compared with a guessing algorythm by means of precision-recall plot.
+
+Code is applied on the whole set of data. Results are written in csv files.
+
+Note: an alternative method is not finished inside code: looking for peak by means of a gaussian function fit inside each zone.
