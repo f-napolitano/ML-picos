@@ -9,3 +9,9 @@ Code efficiency is compared with a guessing algorythm by means of precision-reca
 Code is applied on the whole set of data. Results are written in csv files.
 
 Note: an alternative method is not finished inside code: looking for peak by means of a gaussian function fit inside each zone.
+
+V0.3a
+Working version of a depurated code.
+- Original code is now splitted in 3 independent codes: train_eval_sets.R that builds the train and test sets randomly inside every folder in dataset (50-50, random in each folder), main code (ML_picos3.R) builds the zones where peaks are going to be looked for, and train the model to achieve best F-score, lastly ML_apply1.R apllies the results from training to the unknown datasets.
+- code rewriten to have better organization, for being easy to read and for being shorter. Now its based on list of lists rather than dataframes with huge amount of columns.
+- most of old code remains commented for testing purposes

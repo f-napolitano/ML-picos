@@ -65,7 +65,7 @@ filetrainpath <- ifelse(osystem == "ubuntu",
 
 train_set <- read.csv(paste0(filetrainpath, "CR94-1200_train_set.csv"))
 test_set <- read.csv(paste0(filetrainpath, "CR94-1200_test_set.csv"))
-test_set <- rename(test_set, file = Archivo)
+#test_set <- rename(test_set, file = Archivo)
 
 train_set <- train_set %>% mutate(fullfile = paste0(set, "/", file))
 test_set <- test_set %>% mutate(fullfile = paste0(set, "/", file))
@@ -295,39 +295,42 @@ Output_train_list$PredPicoG3 <- (Output_train_list$MaxGauss3 - Output_train_list
 Output_train_list$PredPicoG4 <- (Output_train_list$MaxGauss4 - Output_train_list$media4) / Output_train_list$sd4
 Output_train_list$PredPicoG5 <- (Output_train_list$MaxGauss5 - Output_train_list$media5) / Output_train_list$sd5
 
-Output_train_predM_df <- Output_train_list %>% select(c('filename', 'set',
-                                                        'PredPicoM1', 'pico1', 
-                                                        'PredPicoM2', 'pico2',
-                                                        'PredPicoM3', 'pico3',
-                                                        'PredPicoM4', 'pico4',
-                                                        'PredPicoM5', 'pico5'))
-Output_train_predG_df <- Output_train_list %>% select(c('filename', 'set',
-                                                        'PredPicoG1', 'peakG1', 
-                                                        'PredPicoG2', 'peakG2',
-                                                        'PredPicoG3', 'peakG3',
-                                                        'PredPicoG4', 'peakG4',
-                                                        'PredPicoG5', 'peakG5'))
+#Output_train_predM_df <- Output_train_list %>% select(c('filename', 'set',
+#                                                        'PredPicoM1', 'pico1', 
+#                                                        'PredPicoM2', 'pico2',
+#                                                        'PredPicoM3', 'pico3',
+#                                                        'PredPicoM4', 'pico4',
+#                                                        'PredPicoM5', 'pico5'))
+#Output_train_predG_df <- Output_train_list %>% select(c('filename', 'set',
+#                                                        'PredPicoG1', 'peakG1', 
+#                                                        'PredPicoG2', 'peakG2',
+#                                                        'PredPicoG3', 'peakG3',
+#                                                        'PredPicoG4', 'peakG4',
+#                                                        'PredPicoG5', 'peakG5'))
+
+Output_train_predM_df <- Output_train_list
 
 # ------------- building the algorithm on train set ----------------------
 x <- Output_train_predM_df$PredPicoM1
 y <- as.character(train_set$zona.1)
-test_set$zona.1 <- as.character(test_set$zona.1)
+y <- train_set$zona1
+test_set$zona1 <- as.character(test_set$zona1)
 y_hat <- ifelse(x < ispeak, "FALSE", "TRUE")
 y_hat <- as.factor(y_hat)
 
 
 mean(y == y_hat) 
-confusionMatrix(data = y_hat, reference = as.factor(test_set$zona.1))
+confusionMatrix(data = y_hat, reference = as.factor(test_set$zona1))
 # here we have the evidence of what was clear during exploration, data has a huge prevalence of NO PEAK outcomes (here counted as positive outcome)
 # So clearly we can't use accuracy, need to switch to F-1 and balanced accuracy
 
 # maximizing F-score
-ispeak <- seq(from = 1.75, to = 6, by = 0.1)
+ispeak <- seq(from = 1.7, to = 6, by = 0.1)
 F_1 <- map_dbl(ispeak, function(x){ 
   y_hat <- ifelse(Output_train_predM_df$PredPicoM1 < x, "FALSE", "TRUE")
   y_hat <- as.factor(y_hat)
-  F_meas(data = y_hat, reference = as.factor(train_set$zona.1))
-  })
+  F_meas(data = y_hat, reference = as.factor(train_set$zona1))
+})
 
 ggplot() + aes(ispeak, F_1) + geom_point() + geom_line()
 max(F_1)
@@ -337,54 +340,109 @@ best_ispeak
 
 
 # ------------ construction "test set" as above with "train set" -----------------
-datatestlist <- lapply(as.character(test_set$fullfile), function(x)read.table(x))
-datatestfr <- bind_cols(datatestlist)
+datatestlist <- lapply(as.character(test_set$fullfile), function(x)read.table(x, header = TRUE, sep = ","))
+#datatestfr <- bind_cols(datatestlist)
 
-Output_test_list <- test_set$Archivo
+Output_test_list <- as.character(test_set$file)
 Output_test_list <- as.data.frame(Output_test_list) %>% mutate(set = test_set$set)
 Output_test_list <- rename(Output_test_list, filename = Output_test_list)
 
-diff1 <- datatestfr
+diff1 <- datatestlist
 
-zona <- lapply(seq(1:5), function(x) {
-  diff1 %>% filter(V1...1 > (validos_filt$twothetaM[x] - validos_filt$min[x] /2) & V1...1 < (validos_filt$twothetaM[x] + validos_filt$min[x] /2))
+zona <- lapply(seq(1:length(diff1)), function(x) {
+  lapply(seq(1:5), function(y) {
+    diff1[[x]] %>% filter(V1 > (validos_filt$twothetaM[y] - validos_filt$min[y] / 2) &
+                            V1 < (validos_filt$twothetaM[y] + validos_filt$min[y] / 2))
+  })
+  #diff1 %>% filter(V1...1 > (validos_filt$twothetaM[x] - validos_filt$min[x] /2) & V1...1 < (validos_filt$twothetaM[x] + validos_filt$min[x] /2))
 })
 
-intsd <- lapply(seq(1:5), function(x) {
-  zona[[x]] %>% filter(V1...1 < (validos_filt$twothetaM[x] - validos_filt$min[x] /4) | V1...1 > (validos_filt$twothetaM[x] + validos_filt$min[x] /4))
+subzona <- lapply(seq(1:length(diff1)), function(x) {
+  lapply(seq(1:5), function(y) {
+    zona[[x]][[y]] %>% filter(V1 < (validos_filt$twothetaM[y] - validos_filt$min[y] * subzone_size) |
+                                V1 > (validos_filt$twothetaM[y] + validos_filt$min[y] * subzone_size))
+  })
 })
 
-intsd <- lapply(seq(1:5), function(x) {intsd[[x]] <- intsd[[x]][,c(FALSE, TRUE)]})
+fitbkground_test <- lapply(seq(1:length(diff1)), function(x) {
+  lapply(seq(1:5), function(y) {
+    lm(smooth ~ V1, data = subzona[[x]][[y]])
+  })
+})
 
-Output_test_list <- Output_test_list %>% mutate(sd1 = transpose(data.frame(lapply(intsd[[1]], function (x) sd(x)))), 
-                                                  media1 = transpose(data.frame(lapply(intsd[[1]], function (x) mean(x)))), 
-                                                  sd2 = transpose(data.frame(lapply(intsd[[2]], function (x) sd(x)))), 
-                                                  media2 = transpose(data.frame(lapply(intsd[[2]], function (x) mean(x)))), 
-                                                  sd3 = transpose(data.frame(lapply(intsd[[3]], function (x) sd(x)))), 
-                                                  media3 = transpose(data.frame(lapply(intsd[[3]], function (x) mean(x)))), 
-                                                  sd4 = transpose(data.frame(lapply(intsd[[4]], function (x) sd(x)))), 
-                                                  media4 = transpose(data.frame(lapply(intsd[[4]], function (x) mean(x)))), 
-                                                  media5 = transpose(data.frame(lapply(intsd[[5]], function (x) mean(x)))), 
-                                                  sd5 = transpose(data.frame(lapply(intsd[[5]], function (x) sd(x)))))
+zonecalc_test <- lapply(seq(1:length(diff1)), function(x) {
+  lapply(seq(1:5), function(y) {
+    temp_max <- max(zona[[x]][[y]]$smooth)
+    temp_2thetamax <- zona[[x]][[y]]$V1[which.max(zona[[x]][[y]]$smooth)]
+    temp_bknd2theta <- as.numeric(fitbkground_test[[x]][[y]]$coefficients[1]) + as.numeric(fitbkground_test[[x]][[y]]$coefficients[2]) * temp_2thetamax
+    temp_sdbknd <- sd(fitbkground_test[[x]][[y]]$residual)
+    list(temp_max, 
+         temp_2thetamax,
+         temp_bknd2theta,
+         temp_sdbknd,
+         (temp_max - temp_bknd2theta) / temp_sdbknd
+         )
+  })
+})
 
-intsd <- lapply(seq(1:5), function(x) {zona[[x]][, c(FALSE, TRUE)]})
+temp_df <- data.frame(matrix(unlist(zonecalc_test), byrow = TRUE), stringsAsFactors = FALSE)
 
-Output_test_list <- Output_test_list %>% mutate(Maximo1 = sapply(intsd[[1]], function (x) max(x)), 
-                                                  pico1 = diag( sapply(intsd[[1]], function(x) { ifelse(max(x) > media1 + ispeak * sd1, TRUE, FALSE)} )), 
-                                                  Maximo2 = sapply(intsd[[2]], function(x) max(x)),
-                                                  pico2 = diag( sapply(intsd[[2]], function(x) { ifelse(max(x) > media2 + ispeak * sd2, TRUE, FALSE)} )),
-                                                  Maximo3 = sapply(intsd[[3]], function(x) max(x)),
-                                                  pico3 = diag( sapply(intsd[[3]], function(x) { ifelse(max(x) > media3 + ispeak * sd3, TRUE, FALSE)} )),
-                                                  Maximo4 = sapply(intsd[[4]], function(x) max(x)),
-                                                  pico4 = diag( sapply(intsd[[4]], function(x) { ifelse(max(x) > media4 + ispeak * sd4, TRUE, FALSE)} )),
-                                                  Maximo5 = sapply(intsd[[5]], function(x) max(x)),
-                                                  pico5 = diag( sapply(intsd[[5]], function(x) { ifelse(max(x) > media5 + ispeak * sd5, TRUE, FALSE)} )))
-Output_test_list[, c('fitGmu1', 'fitGsigma1', 'fitGscale1', 'MaxGauss1', 'peakG1',
-                      'fitGmu2', 'fitGsigma2', 'fitGscale2', 'MaxGauss2', 'peakG2',
-                      'fitGmu3', 'fitGsigma3', 'fitGscale3', 'MaxGauss3', 'peakG3',
-                      'fitGmu4', 'fitGsigma4', 'fitGscale4', 'MaxGauss4', 'peakG4',
-                      'fitGmu5', 'fitGsigma5', 'fitGscale5', 'MaxGauss5', 'peakG5')
-] <- NA
+Output_test_list[, c("zona1_Max", "PredPicoM1",
+                     "zona2_Max", "PredPicoM2", 
+                     "zona3_Max", "PredPicoM3", 
+                     "zona4_Max", "PredPicoM4",
+                     "zona5_Max", "PredPicoM5")] <- NA
+
+
+Output_test_list$zona1_Max <- temp_df[seq(1, nrow(temp_df), 25), ]
+Output_test_list$PredPicoM1 <- temp_df[seq(5, nrow(temp_df), 25), ]
+Output_test_list$zona2_Max <- temp_df[seq(6, nrow(temp_df), 25), ]
+Output_test_list$PredPicoM2 <- temp_df[seq(10, nrow(temp_df), 25), ]
+Output_test_list$zona3_Max <- temp_df[seq(11, nrow(temp_df), 25), ]
+Output_test_list$PredPicoM3 <- temp_df[seq(15, nrow(temp_df), 25), ]
+Output_test_list$zona4_Max <- temp_df[seq(16, nrow(temp_df), 25), ]
+Output_test_list$PredPicoM4 <- temp_df[seq(20, nrow(temp_df), 25), ]
+Output_test_list$zona5_Max <- temp_df[seq(21, nrow(temp_df), 25), ]
+Output_test_list$PredPicoM5 <- temp_df[seq(25, nrow(temp_df), 25), ]
+
+rm(temp_df)
+
+
+#intsd <- lapply(seq(1:5), function(x) {
+#  zona[[x]] %>% filter(V1...1 < (validos_filt$twothetaM[x] - validos_filt$min[x] /4) | V1...1 > (validos_filt$twothetaM[x] + validos_filt$min[x] /4))
+#})
+#
+#intsd <- lapply(seq(1:5), function(x) {intsd[[x]] <- intsd[[x]][,c(FALSE, TRUE)]})
+#
+#Output_test_list <- Output_test_list %>% mutate(sd1 = transpose(data.frame(lapply(intsd[[1]], function (x) sd(x)))), 
+#                                                  media1 = transpose(data.frame(lapply(intsd[[1]], function (x) mean(x)))), 
+#                                                  sd2 = transpose(data.frame(lapply(intsd[[2]], function (x) sd(x)))), 
+#                                                  media2 = transpose(data.frame(lapply(intsd[[2]], function (x) mean(x)))), 
+#                                                  sd3 = transpose(data.frame(lapply(intsd[[3]], function (x) sd(x)))), 
+#                                                  media3 = transpose(data.frame(lapply(intsd[[3]], function (x) mean(x)))), 
+#                                                  sd4 = transpose(data.frame(lapply(intsd[[4]], function (x) sd(x)))), 
+#                                                  media4 = transpose(data.frame(lapply(intsd[[4]], function (x) mean(x)))), 
+#                                                  media5 = transpose(data.frame(lapply(intsd[[5]], function (x) mean(x)))), 
+#                                                  sd5 = transpose(data.frame(lapply(intsd[[5]], function (x) sd(x)))))
+#
+#intsd <- lapply(seq(1:5), function(x) {zona[[x]][, c(FALSE, TRUE)]})
+#
+#Output_test_list <- Output_test_list %>% mutate(Maximo1 = sapply(intsd[[1]], function (x) max(x)), 
+#                                                  pico1 = diag( sapply(intsd[[1]], function(x) { ifelse(max(x) > media1 + ispeak * sd1, TRUE, FALSE)} )), 
+#                                                  Maximo2 = sapply(intsd[[2]], function(x) max(x)),
+#                                                  pico2 = diag( sapply(intsd[[2]], function(x) { ifelse(max(x) > media2 + ispeak * sd2, TRUE, FALSE)} )),
+#                                                  Maximo3 = sapply(intsd[[3]], function(x) max(x)),
+#                                                  pico3 = diag( sapply(intsd[[3]], function(x) { ifelse(max(x) > media3 + ispeak * sd3, TRUE, FALSE)} )),
+#                                                  Maximo4 = sapply(intsd[[4]], function(x) max(x)),
+#                                                  pico4 = diag( sapply(intsd[[4]], function(x) { ifelse(max(x) > media4 + ispeak * sd4, TRUE, FALSE)} )),
+#                                                  Maximo5 = sapply(intsd[[5]], function(x) max(x)),
+#                                                  pico5 = diag( sapply(intsd[[5]], function(x) { ifelse(max(x) > media5 + ispeak * sd5, TRUE, FALSE)} )))
+#Output_test_list[, c('fitGmu1', 'fitGsigma1', 'fitGscale1', 'MaxGauss1', 'peakG1',
+#                      'fitGmu2', 'fitGsigma2', 'fitGscale2', 'MaxGauss2', 'peakG2',
+#                      'fitGmu3', 'fitGsigma3', 'fitGscale3', 'MaxGauss3', 'peakG3',
+#                      'fitGmu4', 'fitGsigma4', 'fitGscale4', 'MaxGauss4', 'peakG4',
+#                      'fitGmu5', 'fitGsigma5', 'fitGscale5', 'MaxGauss5', 'peakG5')
+#] <- NA
 
 for(i in 1:round(ncol(diff1)/2)) {
   
@@ -472,27 +530,27 @@ Output_test_list$PredPicoG4 <- (Output_test_list$MaxGauss4 - Output_test_list$me
 Output_test_list$PredPicoG5 <- (Output_test_list$MaxGauss5 - Output_test_list$media5) / Output_test_list$sd5
 
 
-Output_test_predM_df <- Output_test_list %>% select(c('filename', 'set',
-                                                        'PredPicoM1', 'pico1', 
-                                                        'PredPicoM2', 'pico2',
-                                                        'PredPicoM3', 'pico3',
-                                                        'PredPicoM4', 'pico4',
-                                                        'PredPicoM5', 'pico5'))
-Output_test_predG_df <- Output_test_list %>% select(c('filename', 'set',
-                                                        'PredPicoG1', 'peakG1', 
-                                                        'PredPicoG2', 'peakG2',
-                                                        'PredPicoG3', 'peakG3',
-                                                        'PredPicoG4', 'peakG4',
-                                                        'PredPicoG5', 'peakG5'))
+#Output_test_predM_df <- Output_test_list %>% select(c('filename', 'set',
+#                                                        'PredPicoM1', 'pico1', 
+#                                                        'PredPicoM2', 'pico2',
+#                                                        'PredPicoM3', 'pico3',
+#                                                        'PredPicoM4', 'pico4',
+#                                                        'PredPicoM5', 'pico5'))
+#Output_test_predG_df <- Output_test_list %>% select(c('filename', 'set',
+#                                                        'PredPicoG1', 'peakG1', 
+#                                                        'PredPicoG2', 'peakG2',
+#                                                        'PredPicoG3', 'peakG3',
+#                                                        'PredPicoG4', 'peakG4',
+#                                                        'PredPicoG5', 'peakG5'))
 
 # done constructing the test_set as we've done with train_set
-
+Output_test_predM_df <- Output_test_list
 
 # -------------------- Evaluation on test set ----------------------------
 #lets evaluate sensitivity and specificity at confusion matrix from this best_ispeak found at test_set
 y_hat <- ifelse(Output_test_predM_df$PredPicoM1 < best_ispeak, "FALSE", "TRUE")
 y_hat <- as.factor(y_hat)
-confusionMatrix(data = y_hat, reference = as.factor(test_set$zona.1))
+confusionMatrix(data = y_hat, reference = as.factor(test_set$zona1))
 
 # Here we're still seeing an unbalance between Sensitivity and specificity, being the later one much too low
 # Will try to weight differently how much important is to detect TRUE a peak than detect FALSE a no peak
@@ -502,11 +560,11 @@ confusionMatrix(data = y_hat, reference = as.factor(test_set$zona.1))
 beta_prop <- 0.25
 rm(ispeak)
 rm(F_1)
-ispeak <- seq(from = 1.75, to = 6, by = 0.1)
+ispeak <- seq(from = 1.7, to = 6, by = 0.1)
 F_1 <- map_dbl(ispeak, function(x){
   y_hat <- ifelse(Output_train_predM_df$PredPicoM1 < x, "FALSE", "TRUE")
   y_hat <- as.factor(y_hat)
-  F_meas(data = y_hat, reference = as.factor(train_set$zona.1), beta = beta_prop)
+  F_meas(data = y_hat, reference = as.factor(train_set$zona1), beta = beta_prop)
 })
 
 ggplot() + aes(ispeak, F_1) + geom_point() + geom_line()
@@ -516,14 +574,15 @@ best_ispeak
 
 y_hat <- ifelse(Output_test_predM_df$PredPicoM1 < best_ispeak, "FALSE", "TRUE")
 y_hat <- as.factor(y_hat)
-confusionMatrix(data = y_hat, reference = as.factor(test_set$zona.1))
+confusionMatrix(data = y_hat, reference = as.factor(test_set$zona1))
 
 # ----------- Comparing predicted and true results in test set -----------------
-test_set <- add_column(test_set, PredPicoM1 = y_hat, .after = "zona.1")
-
-index <- test_set %>% with(which(zona.1 == "TRUE" & PredPicoM1 == "TRUE")) # list of indexes of where TRUE peaks where found TRUE
-lapply(index, function(x) plot(zona1[[2*x-1]], zona1[[2*x]], main = test_set$Archivo[x]))
-
+# don't remember the meaning of this!
+#test_set <- add_column(test_set, PredPicoM1 = y_hat, .after = "zona1")
+#
+#index <- test_set %>% with(which(zona1 == "TRUE" & PredPicoM1 == "TRUE")) # list of indexes of where TRUE peaks where found TRUE
+#lapply(index, function(x) plot(zona1[[2*x-1]], zona1[[2*x]], main = test_set$Archivo[x]))
+#
 # ----------- evaluating F_1 for every ispeak and every beta -------------------
 beta_prop_vec <- seq(from = 0.2, to = 1, by = 0.1)
 rm(F_1)
@@ -532,7 +591,7 @@ rm(F_1)
 F_1_2 <- function(x,y) {
   y_hat1 <- ifelse(Output_train_predM_df$PredPicoM1 < x, "FALSE", "TRUE")
   y_hat1 <- as.factor(y_hat1)
-  F_meas(data = y_hat1, reference = as.factor(train_set$zona.1), beta = y)
+  F_meas(data = y_hat1, reference = as.factor(train_set$zona1), beta = y)
 }
 
 F_1 <- sapply(beta_prop_vec, function(y) mapply(F_1_2,ispeak,y))
@@ -553,12 +612,12 @@ ggplot(F_1, aes(valor, value)) + geom_line(aes(colour = beta)) + geom_point(aes(
 # ROC 
 probs <- seq(0, 1, length.out = 11)
 guessing <- map_df(probs, function(p) {
-  y_hat_prob <- sample(c("FALSE", "TRUE"), length(test_index), 
+  y_hat_prob <- sample(c("FALSE", "TRUE"), nrow(test_set), 
                        replace = TRUE, prob = c(p, 1-p)) %>%
     factor(levels = c("FALSE", "TRUE"))
   list(method = "Guess", 
-       recall = sensitivity(y_hat_prob, as.factor(test_set$zona.1)),
-       precision = precision(y_hat_prob, as.factor(test_set$zona.1)))
+       recall = sensitivity(y_hat_prob, as.factor(test_set$zona1)),
+       precision = precision(y_hat_prob, as.factor(test_set$zona1)))
 })
 ggplot() + aes(guessing$recall, guessing$precision) + geom_point() + geom_line() + geom_label(aes(label = probs))
 
@@ -566,8 +625,8 @@ max_method <- map_df(ispeak, function(peak) {
   y_hat_maxROC <- ifelse(Output_train_predM_df$PredPicoM1 < peak, "FALSE", "TRUE") %>%
     factor(levels = c("FALSE", "TRUE"))
   list(method = "Maximum", 
-       recall = sensitivity(y_hat_maxROC, as.factor(test_set$zona.1)), 
-       precision = precision(y_hat_maxROC, as.factor(test_set$zona.1)))
+       recall = sensitivity(y_hat_maxROC, as.factor(test_set$zona1)), 
+       precision = precision(y_hat_maxROC, as.factor(test_set$zona1)))
 })
 ggplot() + aes(max_method$recall, max_method$precision) + geom_point() + geom_line() + geom_label(aes(label = ispeak))
 
@@ -582,6 +641,11 @@ best_ispeak <- 2.65
 write.csv(best_ispeak, paste(filetrainpath, "best_ispeak",".csv", sep=""), row.names=FALSE)
 write.csv(validos_filt, paste(filetrainpath, "validos_filt", ".csv", sep = ""), row.names = FALSE)
 write.csv(results, paste(filetrainpath, "Fscore_beta", ".csv", sep = ""), row.names = FALSE)
+
+
+
+
+
 
 # ------------- Applying ML code to data ---------------------------------------
 # first lets know where data actually are
